@@ -51,7 +51,7 @@ npm rebuild esbuild workerd
 ### Easiest: the signed release
 
 1. Download the `.xpi` file from the
-   [latest release](https://github.com/jenduis/ytm-together/releases/latest).
+   [latest release](https://github.com/Zureteiru/ytm-together/releases/latest).
 2. Drag it into a Firefox window and click **Add**.
 
 It's signed by Mozilla, so it stays installed after restarts. The extension
