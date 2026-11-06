@@ -144,8 +144,11 @@ the same moment.
   to the right spot.
 - **Autoplay guard:** if YouTube Music's autoplay starts a different song on the
   guest, the extension switches back to the host's song.
-- **Buffering / ad hold:** if the guest is buffering or gets an ad for more than
-  0.7 s, the host pauses and both resume together (gives up waiting after 15 s).
+- **Buffering / ad hold:** if the guest's playback freezes for 1.5 s (or an ad
+  shows), the host pauses. Both resume together once the guest has at least 3 s of
+  the song loaded, so it doesn't stall again right away (gives up waiting after
+  15 s). If the guest's connection keeps struggling (3 holds in a minute), it
+  stops pausing the host for 2 minutes and catches up on its own instead.
 
 ## Troubleshooting
 

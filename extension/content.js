@@ -43,7 +43,11 @@
   let autoplayWait = null; // { oldId, until } — our song ended first; wait for the host
   let stalledSince = 0;
   let stallReported = false;
+  let stallReportedAt = 0;
+  let stallTimes = []; // when this guest asked the host to wait (perf time)
+  let lastAdvance = { t: -1, at: 0 }; // last time the playhead actually moved
   let scheduledPlayAt = 0;
+  let selfSeekUntil = 0; // a seek we started is still in progress (slow seeks can take seconds)
 
   const serverNow = () => Date.now() + offset;
   const perfNow = () => performance.now();
@@ -134,7 +138,19 @@
     const v = getVideo();
     if (!v) return;
     markSelf("seeked", 1200);
+    selfSeekUntil = perfNow() + 10000;
     v.currentTime = Math.max(0, t);
+  }
+
+  /** The video's loaded ranges as [[start, end], …]. */
+  function bufferedRanges(v) {
+    const out = [];
+    try {
+      for (let i = 0; i < v.buffered.length; i++) out.push([v.buffered.start(i), v.buffered.end(i)]);
+    } catch {
+      /* ignore */
+    }
+    return out;
   }
 
   function setRate(r) {
@@ -235,8 +251,12 @@
       }
     },
     seeked() {
+      // Ours if we started a seek that hasn't finished yet, however long it took.
+      const mine = isSelf("seeked") || perfNow() < selfSeekUntil;
+      selfSeekUntil = 0;
+      if (mine) markSelf("seeked", 600); // let it settle before measuring drift
       if (role === "host") queueBroadcast();
-      else if (role === "guest" && !isSelf("seeked") && !isSelf("track") && guestOwnsTrack()) {
+      else if (role === "guest" && !mine && !isSelf("track") && guestOwnsTrack()) {
         sendCmd({ action: "seek", pos: video.currentTime });
       }
     },
@@ -424,7 +444,7 @@
     const at = serverNow() + 500;
     pendingStart = { videoId: getTrackId(), pos, at };
     doPause();
-    doSeek(pos);
+    if (Math.abs(v.currentTime - pos) > 0.05) doSeek(pos); // skip pointless seeks: they can re-buffer
     port && port.postMessage({ t: "alarm", at: at - offset, tag: "start" });
     queueBroadcast(0);
   }
@@ -567,22 +587,53 @@
 
     if (now < graceUntil) return; // waiting for the host to act on our command
 
-    // Buffering or an ad on this side → ask the host to hold.
+    // Buffering or an ad on this side → ask the host to wait, and only let it
+    // go on once enough audio is loaded that we won't stall again right away.
+    const ad = adShowing();
     const shouldPlay = st.playing && serverNow() >= st.at;
-    const stalled = adShowing() || (shouldPlay && !v.paused && v.readyState < 3);
-    if (stalled) {
-      if (!stalledSince) stalledSince = now;
-      if (!stallReported && now - stalledSince > 700) {
-        stallReported = true;
-        send({ t: "stall", on: true });
+    if (v.paused || !shouldPlay || Math.abs(v.currentTime - lastAdvance.t) > 0.01) {
+      lastAdvance = { t: v.currentTime, at: now };
+    }
+    // Frozen = supposed to be playing but the playhead hasn't moved (a more
+    // reliable sign than readyState, which dips briefly on every small seek).
+    const frozen = shouldPlay && !v.paused && now - lastAdvance.at > SC.STALL_AFTER_MS;
+
+    if (!stallReported) {
+      if (ad || frozen) {
+        if (!stalledSince) stalledSince = now;
+        const allowed = ad || SC.mayHold(stallTimes, now);
+        if (allowed && now - stalledSince > (ad ? 700 : 0)) {
+          stallReported = true;
+          stallReportedAt = now;
+          if (!ad) stallTimes = [...stallTimes.slice(-10), now];
+          send({ t: "stall", on: true });
+          log(ad ? "ad showing — asking the host to wait" : "buffering — asking the host to wait");
+        } else if (!allowed) {
+          warning = "Slow connection — catching up without pausing the host.";
+          // Don't jump ahead into audio that isn't loaded yet; that only starts
+          // buffering again. Once playback moves, drift correction catches up.
+          setRate(1);
+          return;
+        }
+      } else {
+        stalledSince = 0;
       }
-      return;
+      if (ad) return;
+    } else {
+      const loaded = SC.readyToResume(bufferedRanges(v), v.currentTime, isFinite(v.duration) ? v.duration : 0);
+      if ((!ad && loaded && !frozen) || now - stallReportedAt > 14000) {
+        stallReported = false;
+        stalledSince = 0;
+        lastAdvance = { t: v.currentTime, at: now };
+        send({ t: "stall", on: false });
+        log("caught up — host can continue");
+      } else if (ad || (st.playing && !st.hold)) {
+        return; // wait for the ad to end / for the host to pause
+      }
+      // Otherwise the host is holding: fall through so we sit paused at the
+      // host's spot while more audio loads.
     }
-    stalledSince = 0;
-    if (stallReported) {
-      stallReported = false;
-      send({ t: "stall", on: false });
-    }
+    if (warning.startsWith("Slow connection") && SC.mayHold(stallTimes, now)) warning = "";
 
     const adjust = (delayMs - (st.delay || 0)) / 1000;
 
@@ -624,7 +675,9 @@
     const target = SC.expectedPosition(st, sNow) + adjust;
 
     if (v.paused) {
-      doSeek(target + 0.05);
+      // Already about right → just play; the speed nudge closes the rest. Jumping
+      // here would throw away loaded audio and can start buffering all over again.
+      if (Math.abs(v.currentTime - target) > SC.RESUME_SNAP) doSeek(target + 0.05);
       doPlay();
       return;
     }

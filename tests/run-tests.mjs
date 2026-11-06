@@ -55,6 +55,36 @@ await test("room codes are 6 unambiguous characters", () => {
   for (let i = 0; i < 200; i++) assert.match(SC.randomRoomCode(), /^[A-HJ-NP-Z2-9]{6}$/);
 });
 
+// ---- buffering holds -------------------------------------------------------------
+
+await test("buffered-ahead reads the range containing the playhead", () => {
+  const ranges = [[0, 12], [40, 55]];
+  assert.equal(SC.bufferedAhead(ranges, 10), 2);
+  assert.equal(SC.bufferedAhead(ranges, 45), 10);
+  assert.equal(SC.bufferedAhead(ranges, 20), 0, "not loaded at all");
+  assert.equal(SC.bufferedAhead([], 5), 0);
+});
+
+await test("hold is released only once enough audio is loaded", () => {
+  // The old loop: paused guest → 'stall off' at once → host resumes → stall again.
+  assert.equal(SC.readyToResume([[30, 30.5]], 30, 200), false, "0.5 s loaded is not enough");
+  assert.equal(SC.readyToResume([[30, 34]], 30, 200), true);
+  // Near the end of a song, the rest of the song is enough.
+  assert.equal(SC.readyToResume([[198, 199.95]], 198, 200), true);
+});
+
+await test("a struggling connection stops pausing the host for a while", () => {
+  const W = SC.STALL_WINDOW_MS;
+  const C = SC.STALL_COOLDOWN_MS;
+  assert.equal(SC.mayHold([], 0), true);
+  assert.equal(SC.mayHold([1000, 20000], 30000), true, "two holds is fine");
+  const three = [1000, 20000, 40000];
+  assert.equal(SC.mayHold(three, 41000), false, "third hold in a minute → stop");
+  assert.equal(SC.mayHold(three, 40000 + C - 1), false, "still cooling down");
+  assert.equal(SC.mayHold(three, 40000 + C + 1), true, "cooldown over");
+  assert.equal(SC.mayHold([0, W / 2, W + 5000], W + 6000), true, "spread out over more than a minute");
+});
+
 // ---- drift simulation ----------------------------------------------------------
 // Guest starts 400 ms behind, its clock estimate is off by 15 ms, and its audio
 // runs 0.05% fast (several times worse than real sound cards). The controller

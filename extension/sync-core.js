@@ -83,6 +83,44 @@
       return prevDuration - prevPos < 4;
     },
 
+    // Buffering holds (seconds unless noted)
+    STALL_AFTER_MS: 1500, // playback frozen this long → ask the host to wait
+    RESUME_BUFFER: 3, // only let the host resume once this much audio is loaded ahead
+    STALL_LIMIT: 3, // this many holds in STALL_WINDOW_MS → stop pausing the host for a while
+    STALL_WINDOW_MS: 60000,
+    STALL_COOLDOWN_MS: 120000,
+    RESUME_SNAP: 0.25, // when resuming, closer than this → just play and let the speed nudge fix it
+
+    /** Seconds of audio loaded ahead of `t`, given buffered ranges [[start, end], …]. */
+    bufferedAhead(ranges, t) {
+      for (const [s, e] of ranges || []) if (t >= s - 0.1 && t < e) return e - Math.max(t, s);
+      return 0;
+    },
+
+    /** Enough audio loaded to resume without stalling again right away? */
+    readyToResume(ranges, t, duration) {
+      const left = duration > 0 ? Math.max(0, duration - t - 0.1) : Infinity;
+      return this.bufferedAhead(ranges, t) >= Math.min(this.RESUME_BUFFER, left);
+    },
+
+    /**
+     * Should this guest still pause the host for buffering? Returns false once it
+     * has asked too often recently: a slow connection then catches up by jumping
+     * ahead instead of pausing both people again and again.
+     */
+    mayHold(recentStallTimes, nowMs) {
+      const recent = recentStallTimes.filter((t) => nowMs - t < this.STALL_WINDOW_MS + this.STALL_COOLDOWN_MS);
+      const inWindow = recent.filter((t) => nowMs - t < this.STALL_WINDOW_MS);
+      if (inWindow.length >= this.STALL_LIMIT) return false;
+      // Still cooling down after hitting the limit earlier?
+      for (let i = 0; i + this.STALL_LIMIT - 1 < recent.length; i++) {
+        const first = recent[i];
+        const last = recent[i + this.STALL_LIMIT - 1];
+        if (last - first < this.STALL_WINDOW_MS && nowMs - last < this.STALL_COOLDOWN_MS) return false;
+      }
+      return true;
+    },
+
     randomRoomCode() {
       const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
       let code = "";
