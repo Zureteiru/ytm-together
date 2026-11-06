@@ -149,3 +149,7 @@ the same moment.
 - Both of you should have YouTube Music Premium. It works without it, but every ad
   pauses both of you.
 - Cloudflare's free plan easily covers two people listening every day.
+
+## License
+
+[MIT](LICENSE)
