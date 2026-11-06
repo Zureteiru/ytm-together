@@ -154,7 +154,7 @@ the same moment.
   one you set with `wrangler secret put`.
 - **Guest's song switches with a full page reload** — that's the fallback when
   YouTube Music's in-page player doesn't take the switch. It still works, just
-  takes a second or two longer. Tell me if it happens every time; it's fixable.
+  takes a second or two longer. If it happens every time, [open an issue](https://github.com/Zureteiru/ytm-together/issues).
 - **Nothing plays on the guest** — Firefox may be blocking autoplay. Click the
   icon left of the address bar on music.youtube.com → **Autoplay → Allow Audio
   and Video**.
