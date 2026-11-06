@@ -1,0 +1,87 @@
+:root {
+  --bg: #ffffff;
+  --card: #f4f4f6;
+  --text: #18181b;
+  --muted: #6b6b75;
+  --border: #e2e2e7;
+  --accent: #e5484d;
+  --accent-text: #ffffff;
+  --good: #2f9e44;
+  --warn: #c77700;
+  --bad: #d63a3f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1b22;
+    --card: #2a2932;
+    --text: #f2f2f5;
+    --muted: #a1a1ad;
+    --border: #3a3944;
+    --good: #51cf66;
+    --warn: #ffb347;
+    --bad: #ff6b6b;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  width: 320px;
+  padding: 14px;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+h1 { font-size: 15px; margin: 0; flex: 1; }
+
+.pill {
+  font-size: 11px; padding: 2px 8px; border-radius: 99px;
+  background: var(--card); color: var(--muted); border: 1px solid var(--border);
+}
+.pill.good { color: var(--good); border-color: currentColor; }
+.pill.warn { color: var(--warn); border-color: currentColor; }
+.pill.bad { color: var(--bad); border-color: currentColor; }
+
+section { display: flex; flex-direction: column; gap: 10px; }
+.card { background: var(--card); border-radius: 10px; padding: 10px 12px; }
+.label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.row { display: flex; gap: 8px; align-items: center; }
+.row.between { justify-content: space-between; }
+.row > input { flex: 1; }
+.or { text-align: center; color: var(--muted); font-size: 12px; }
+
+code#roomCode { font-size: 22px; font-weight: 700; letter-spacing: .12em; }
+.people { margin-top: 6px; color: var(--muted); font-size: 12px; }
+.track { margin: 4px 0 8px; font-weight: 600; overflow-wrap: anywhere; }
+.track .artist { display: block; font-weight: 400; color: var(--muted); }
+.stats { display: flex; gap: 18px; }
+.stats > div { display: flex; flex-direction: column; }
+.stats b { font-size: 14px; }
+b.good { color: var(--good); }
+b.warn { color: var(--warn); }
+b.bad { color: var(--bad); }
+
+.warning, .error {
+  margin-top: 8px; padding: 6px 8px; border-radius: 6px; font-size: 12px;
+  border: 1px solid currentColor;
+}
+.warning { color: var(--warn); }
+.error { color: var(--bad); margin-top: 10px; }
+
+button, input {
+  font: inherit; color: inherit; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg); padding: 7px 10px;
+}
+button { cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+button.small { padding: 4px 10px; font-size: 12px; }
+button.danger { color: var(--bad); }
+.row > button.small { flex: 1; }
+
+details { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px; }
+summary { cursor: pointer; color: var(--muted); }
+#settings { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+#settings label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.hint { color: var(--muted); font-size: 11px; }

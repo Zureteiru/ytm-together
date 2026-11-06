@@ -1,0 +1,6 @@
+node_modules/
+.wrangler/
+.dev.vars
+*.xpi
+*.zip
+ytm-together-extension/

@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icon.svg" alt="" width="22" height="22">
+    <h1>YTM Together</h1>
+    <span id="conn" class="pill">…</span>
+  </header>
+
+  <!-- Not in a room -->
+  <section id="lobby" hidden>
+    <button id="create" class="primary">Create a room</button>
+    <div class="or">or join one</div>
+    <form id="joinForm" class="row">
+      <input id="joinCode" placeholder="Room code" maxlength="32" autocomplete="off" spellcheck="false">
+      <button type="submit">Join</button>
+    </form>
+  </section>
+
+  <!-- In a room -->
+  <section id="inRoom" hidden>
+    <div class="card">
+      <div class="label">Room</div>
+      <div class="row between">
+        <code id="roomCode">——</code>
+        <button id="copy" class="small">Copy</button>
+      </div>
+      <div id="people" class="people"></div>
+    </div>
+
+    <div class="card">
+      <div class="label">Now playing</div>
+      <div id="track" class="track">Open YouTube Music to start.</div>
+      <div class="stats">
+        <div><span class="label">You are</span><b id="role">—</b></div>
+        <div><span class="label">Sync</span><b id="drift">—</b></div>
+      </div>
+      <div id="warning" class="warning" hidden></div>
+    </div>
+
+    <div class="row">
+      <button id="claimHost" class="small">Make me host</button>
+      <button id="leave" class="small danger">Leave room</button>
+    </div>
+  </section>
+
+  <div id="error" class="error" hidden></div>
+
+  <details id="settingsBox">
+    <summary>Settings</summary>
+    <form id="settings">
+      <label>Your name
+        <input id="name" maxlength="32" placeholder="e.g. Deniz">
+      </label>
+      <label>Relay URL
+        <input id="relayUrl" placeholder="https://ytm-together-relay.you.workers.dev" spellcheck="false">
+      </label>
+      <label>Access key <span class="hint">(optional, must match the relay)</span>
+        <input id="key" type="password" autocomplete="off">
+      </label>
+      <label>Audio delay (ms) <span class="hint">e.g. 200 for Bluetooth headphones</span>
+        <input id="delayMs" type="number" step="10" min="0" max="1000">
+      </label>
+      <button type="submit" class="primary">Save</button>
+      <span id="saved" class="hint" hidden>Saved</span>
+    </form>
+  </details>
+
+  <script src="popup.js"></script>
+</body>
+</html>

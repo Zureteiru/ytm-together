@@ -1,0 +1,12 @@
+name = "ytm-together-relay"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+# SQLite-backed Durable Objects are available on Cloudflare's free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
