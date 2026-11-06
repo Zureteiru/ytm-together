@@ -1,8 +1,29 @@
+<div align="center">
+
+<img src="extension/icon.svg" alt="YTM Together logo" width="120" height="120">
+
 # YTM Together
 
-Listen to YouTube Music together in Firefox, in tight sync. One of you is the
-host; the other follows the host's player within a few tens of milliseconds.
-Either of you can play, pause, seek, skip or pick a song.
+**Listen to YouTube Music together in Firefox, in tight sync.**
+
+[![Latest release](https://img.shields.io/github/v/release/Zureteiru/ytm-together?style=flat-square&color=e5484d&label=release)](https://github.com/Zureteiru/ytm-together/releases/latest)
+[![Firefox](https://img.shields.io/badge/Firefox-115%2B-FF7139?style=flat-square&logo=firefoxbrowser&logoColor=white)](https://github.com/Zureteiru/ytm-together/releases/latest)
+[![Cloudflare Workers](https://img.shields.io/badge/relay-Cloudflare%20Workers-F38020?style=flat-square&logo=cloudflare&logoColor=white)](#1-deploy-the-relay-once-about-5-minutes)
+[![License: MIT](https://img.shields.io/github/license/Zureteiru/ytm-together?style=flat-square&color=blue)](LICENSE)
+
+[**⬇ Download the extension**](https://github.com/Zureteiru/ytm-together/releases/latest) · [Set up a relay](#1-deploy-the-relay-once-about-5-minutes) · [How it works](#how-it-works)
+
+</div>
+
+---
+
+One of you is the host; the other follows the host's player within a few tens
+of milliseconds. Either of you can play, pause, seek, skip or pick a song.
+
+- 🎧 **Tight sync:** usually within 50 ms, with gentle speed correction instead of jumps
+- 🔁 **Shared control:** play, pause, seek, skip and pick songs from either side
+- 🔒 **Private:** your own relay, an optional access key, and no audio ever leaves your computer
+- 💸 **Free:** runs on Cloudflare's free plan
 
 Each of you plays YouTube Music on your own account. The extension only sends
 small messages ("song X, 83.2 s, playing, at time T") through a tiny relay you
