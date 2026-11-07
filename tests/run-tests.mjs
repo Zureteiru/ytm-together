@@ -118,6 +118,45 @@ await test("simulated guest converges and stays in sync", () => {
   console.log(`    worst drift after settling: ${(worstAfter * 1000).toFixed(1)} ms`);
 });
 
+// ---- gapless song changes (real content.js, fake player) -------------------------
+
+await test("host: next song after a gapless change plays from its start, not the old song", async () => {
+  const { makePage, wait } = await import("./gapless-host.mjs");
+  const page = makePage([
+    { id: "songAAAAAAA", dur: 2.2 },
+    { id: "songBBBBBBB", dur: 200 },
+  ]);
+  try {
+    page.P.t = 1.0;
+    page.P.playVideo();
+    // Host with one guest in the room.
+    page.deliver({ t: "init", you: "A", host: "A", peers: [{ id: "A" }, { id: "B" }], offset: 0, delayMs: 0 });
+
+    // Song A ends ~1.2 s in; the host waits for the guest, who reports ready.
+    let readySent = false;
+    for (let i = 0; i < 60 && !readySent; i++) {
+      await wait(100);
+      const b = page.sent.find((m) => m.barrier && m.videoId === "songBBBBBBB");
+      if (b) {
+        page.deliver({ t: "ready", from: "B", videoId: "songBBBBBBB" });
+        readySent = true;
+      }
+    }
+    assert.ok(readySent, "host waited for the guest on the new song");
+    await wait(1500); // synchronized start is ~0.5 s later
+
+    assert.equal(page.P.replayedEarlierSong, false, "seeked into the previous song's audio");
+    assert.equal(page.P.cur.id, "songBBBBBBB");
+    assert.equal(page.P.paused, false, "new song is playing");
+    assert.ok(page.P.t < 2, `new song plays from its start (at ${page.P.t.toFixed(2)} s)`);
+    const last = page.sent[page.sent.length - 1];
+    assert.equal(last.videoId, "songBBBBBBB");
+    assert.ok(last.pos < 2, `host reports song time, not stream time (pos ${last.pos})`);
+  } finally {
+    page.stop();
+  }
+});
+
 // ---- relay -------------------------------------------------------------------------
 // Minimal stand-ins for the Workers runtime, enough to exercise the Room logic.
 

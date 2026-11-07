@@ -134,19 +134,60 @@
     }
   }
 
+  // YouTube Music plays songs gaplessly: the next song is appended to the same
+  // <video>, so video.currentTime keeps counting from the start of an earlier
+  // song. Positions and seeks therefore go through YouTube's player API, which
+  // reports and sets the time within the current song.
+
+  /** Position within the current song, in seconds. */
+  function songPos() {
+    const p = api();
+    if (p && typeof p.getCurrentTime === "function") {
+      try {
+        const t = Number(p.getCurrentTime());
+        if (isFinite(t)) return t;
+      } catch {
+        /* fall through */
+      }
+    }
+    return video ? video.currentTime : 0;
+  }
+
+  /** Length of the current song, in seconds (0 if unknown). */
+  function songDur() {
+    const p = api();
+    if (p && typeof p.getDuration === "function") {
+      try {
+        const d = Number(p.getDuration());
+        if (d > 0 && isFinite(d)) return d;
+      } catch {
+        /* fall through */
+      }
+    }
+    return video && isFinite(video.duration) ? video.duration : 0;
+  }
+
   function doSeek(t) {
     const v = getVideo();
     if (!v) return;
     markSelf("seeked", 1200);
     selfSeekUntil = perfNow() + 10000;
-    v.currentTime = Math.max(0, t);
+    const p = api();
+    try {
+      if (!p || typeof p.seekTo !== "function") throw new Error("no player api");
+      p.seekTo(Math.max(0, t), true);
+    } catch {
+      // Raw fallback: convert song time to the video's own timeline.
+      v.currentTime = Math.max(0, t) + (v.currentTime - songPos());
+    }
   }
 
-  /** The video's loaded ranges as [[start, end], …]. */
+  /** Loaded ranges as [[start, end], …], in song time. */
   function bufferedRanges(v) {
     const out = [];
+    const shift = v.currentTime - songPos(); // video timeline → song timeline
     try {
-      for (let i = 0; i < v.buffered.length; i++) out.push([v.buffered.start(i), v.buffered.end(i)]);
+      for (let i = 0; i < v.buffered.length; i++) out.push([v.buffered.start(i) - shift, v.buffered.end(i) - shift]);
     } catch {
       /* ignore */
     }
@@ -246,7 +287,8 @@
       } else if (role === "guest" && !isSelf("pause") && !isSelf("track") && guestOwnsTrack()) {
         // The video also pauses on its own when a song ends — not a user action.
         const v = video;
-        const ended = v && v.duration > 0 && v.duration - v.currentTime < 0.5;
+        const dur = songDur();
+        const ended = v && dur > 0 && dur - songPos() < 0.5;
         if (!ended) sendCmd({ action: "pause" });
       }
     },
@@ -257,7 +299,7 @@
       if (mine) markSelf("seeked", 600); // let it settle before measuring drift
       if (role === "host") queueBroadcast();
       else if (role === "guest" && !mine && !isSelf("track") && guestOwnsTrack()) {
-        sendCmd({ action: "seek", pos: video.currentTime });
+        sendCmd({ action: "seek", pos: songPos() });
       }
     },
   };
@@ -268,7 +310,7 @@
    * play/seek events by itself whenever a song loads).
    */
   function guestOwnsTrack() {
-    return !!(roomState && video && getTrackId() === roomState.videoId && video.currentTime > 1.5);
+    return !!(roomState && video && getTrackId() === roomState.videoId && songPos() > 1.5);
   }
 
   // Guest's next / previous buttons control the host's queue instead of their own.
@@ -404,7 +446,7 @@
       case "play":
         barrier = null;
         holdActive = null;
-        scheduleStart(getVideo() ? getVideo().currentTime : 0);
+        scheduleStart(getVideo() ? songPos() : 0);
         break;
       case "pause":
         pendingStart = null;
@@ -444,7 +486,7 @@
     const at = serverNow() + 500;
     pendingStart = { videoId: getTrackId(), pos, at };
     doPause();
-    if (Math.abs(v.currentTime - pos) > 0.05) doSeek(pos); // skip pointless seeks: they can re-buffer
+    if (Math.abs(songPos() - pos) > 0.05) doSeek(pos); // skip pointless seeks: they can re-buffer
     port && port.postMessage({ t: "alarm", at: at - offset, tag: "start" });
     queueBroadcast(0);
   }
@@ -457,7 +499,7 @@
       seq: ++seq,
       videoId: getTrackId(),
       delay: delayMs,
-      dur: v && isFinite(v.duration) ? v.duration : 0,
+      dur: v ? songDur() : 0,
       title: meta.title,
       artist: meta.artist,
     };
@@ -466,7 +508,7 @@
     return {
       ...base,
       playing: !!(v && !v.paused && !v.ended),
-      pos: v ? v.currentTime : 0,
+      pos: v ? songPos() : 0,
       at: serverNow(),
       hold: !!holdActive,
     };
@@ -532,7 +574,7 @@
       queueBroadcast(0);
     } else if (!holds.size && holdActive) {
       holdActive = null;
-      scheduleStart(v.currentTime);
+      scheduleStart(songPos());
     }
 
     if (now - lastBroadcast > 1000) broadcast();
@@ -591,8 +633,9 @@
     // go on once enough audio is loaded that we won't stall again right away.
     const ad = adShowing();
     const shouldPlay = st.playing && serverNow() >= st.at;
-    if (v.paused || !shouldPlay || Math.abs(v.currentTime - lastAdvance.t) > 0.01) {
-      lastAdvance = { t: v.currentTime, at: now };
+    const pos = songPos();
+    if (v.paused || !shouldPlay || Math.abs(pos - lastAdvance.t) > 0.01) {
+      lastAdvance = { t: pos, at: now };
     }
     // Frozen = supposed to be playing but the playhead hasn't moved (a more
     // reliable sign than readyState, which dips briefly on every small seek).
@@ -620,11 +663,11 @@
       }
       if (ad) return;
     } else {
-      const loaded = SC.readyToResume(bufferedRanges(v), v.currentTime, isFinite(v.duration) ? v.duration : 0);
+      const loaded = SC.readyToResume(bufferedRanges(v), pos, songDur());
       if ((!ad && loaded && !frozen) || now - stallReportedAt > 14000) {
         stallReported = false;
         stalledSince = 0;
-        lastAdvance = { t: v.currentTime, at: now };
+        lastAdvance = { t: pos, at: now };
         send({ t: "stall", on: false });
         log("caught up — host can continue");
       } else if (ad || (st.playing && !st.hold)) {
@@ -642,7 +685,7 @@
       if (!v.paused) doPause();
       setRate(1);
       if (v.readyState >= 2 && readySentFor !== st.videoId) {
-        if (v.currentTime > 0.3) doSeek(0);
+        if (pos > 0.3) doSeek(0);
         readySentFor = st.videoId;
         send({ t: "ready", videoId: st.videoId });
       }
@@ -653,8 +696,8 @@
       if (!v.paused) doPause();
       setRate(1);
       correcting = false;
-      if (Math.abs(v.currentTime - st.pos) > 0.3) doSeek(st.pos);
-      lastDrift = v.currentTime - st.pos;
+      if (Math.abs(pos - st.pos) > 0.3) doSeek(st.pos);
+      lastDrift = pos - st.pos;
       return;
     }
 
@@ -664,7 +707,7 @@
       if (!v.paused) doPause();
       setRate(1);
       const startPos = Math.max(0, st.pos + adjust);
-      if (Math.abs(v.currentTime - startPos) > 0.05) doSeek(startPos);
+      if (Math.abs(pos - startPos) > 0.05) doSeek(startPos);
       if (scheduledPlayAt !== st.at) {
         scheduledPlayAt = st.at;
         port && port.postMessage({ t: "alarm", at: st.at - offset, tag: "start" });
@@ -677,14 +720,14 @@
     if (v.paused) {
       // Already about right → just play; the speed nudge closes the rest. Jumping
       // here would throw away loaded audio and can start buffering all over again.
-      if (Math.abs(v.currentTime - target) > SC.RESUME_SNAP) doSeek(target + 0.05);
+      if (Math.abs(pos - target) > SC.RESUME_SNAP) doSeek(target + 0.05);
       doPlay();
       return;
     }
 
     if (isSelf("seeked")) return; // let the last seek settle before measuring
 
-    const d = SC.decide(v.currentTime, target, correcting);
+    const d = SC.decide(songPos(), target, correcting);
     lastDrift = d.drift;
     correcting = d.correcting;
     if (d.action === "seek") {
@@ -716,10 +759,10 @@
     const id = getTrackId();
     if (v && id) {
       if (id === lastTrack.id) {
-        lastTrack.pos = v.currentTime;
-        lastTrack.dur = isFinite(v.duration) ? v.duration : 0;
+        lastTrack.pos = songPos();
+        lastTrack.dur = songDur();
       } else {
-        lastTrack = { id, pos: v.currentTime, dur: isFinite(v.duration) ? v.duration : 0 };
+        lastTrack = { id, pos: songPos(), dur: songDur() };
       }
     }
 
